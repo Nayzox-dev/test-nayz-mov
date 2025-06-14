@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Lecteur Torrent</title>
+  <title>Lecteur Torrent (WebTorrent)</title>
   <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
   <style>
     body {
@@ -62,37 +62,70 @@
     const video = document.getElementById('video');
     const progressText = document.getElementById('progress');
 
+    function log(...args) {
+      console.log('[LOG]', ...args);
+    }
+
     function playTorrent() {
       const magnet = document.getElementById('magnetInput').value.trim();
-      if (!magnet) return alert("Veuillez entrer un lien magnet.");
-
-      // Empêche les doublons
-      const existing = client.get(magnet);
-      if (existing) {
-        const file = existing.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'));
-        if (file) file.renderTo(video);
+      if (!magnet) {
+        alert("Veuillez entrer un lien magnet.");
         return;
       }
 
-      // Ajoute et lit le torrent
+      // Vérifie s'il est déjà ajouté
+      const existing = client.get(magnet);
+      if (existing) {
+        log("🔁 Torrent déjà présent. Lecture...");
+        const file = existing.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'));
+        if (file) {
+          file.renderTo(video);
+          progressText.textContent = "▶️ Lecture en cours (déjà chargé)";
+        } else {
+          progressText.textContent = "❌ Aucune vidéo trouvée.";
+        }
+        return;
+      }
+
+      log("📥 Ajout du torrent...");
       progressText.textContent = "⏳ Chargement du torrent...";
+
       client.add(magnet, torrent => {
+        log("✅ Torrent ajouté :", torrent);
+
         const file = torrent.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'));
         if (!file) {
+          log("❌ Aucun fichier vidéo compatible trouvé.");
           progressText.textContent = "❌ Aucun fichier vidéo trouvé.";
           return;
         }
 
-        file.renderTo(video);
+        log("🎞️ Fichier trouvé :", file.name);
+        file.renderTo(video, {}, err => {
+          if (err) {
+            log("⚠️ Erreur lors du rendu de la vidéo :", err);
+            progressText.textContent = "❌ Erreur de lecture.";
+          } else {
+            log("▶️ Lecture démarrée !");
+          }
+        });
+
         torrent.on('download', () => {
           const percent = (torrent.progress * 100).toFixed(1);
           const downloadedMB = (torrent.downloaded / 1024 / 1024).toFixed(2);
           const totalMB = (torrent.length / 1024 / 1024).toFixed(2);
           progressText.textContent = `📦 ${percent}% téléchargé (${downloadedMB} / ${totalMB} MB)`;
+          log(`⬇️ Progression : ${percent}% (${downloadedMB} / ${totalMB} MB)`);
         });
 
         torrent.on('done', () => {
+          log("✅ Téléchargement terminé.");
           progressText.textContent = "✅ Téléchargement terminé.";
+        });
+
+        torrent.on('error', err => {
+          log("❌ Erreur torrent :", err);
+          progressText.textContent = "❌ Erreur pendant le torrent.";
         });
       });
     }
