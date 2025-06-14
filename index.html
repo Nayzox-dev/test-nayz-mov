@@ -2,58 +2,97 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Lecteur Torrent Web</title>
+  <title>Lecteur Torrent</title>
   <script src="https://cdn.jsdelivr.net/npm/webtorrent@latest/webtorrent.min.js"></script>
   <style>
-    body { font-family: sans-serif; background: #111; color: white; text-align: center; padding: 2rem; }
-    input, button { padding: 10px; font-size: 1rem; width: 60%; margin: 1rem 0; }
-    video { width: 90%; max-width: 900px; margin-top: 2rem; border: 2px solid white; border-radius: 10px; }
-    progress { width: 80%; height: 20px; }
+    body {
+      background-color: #111;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    input[type="text"] {
+      width: 80%;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: none;
+      margin-bottom: 15px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #dc2626;
+      border: none;
+      border-radius: 5px;
+      color: white;
+      cursor: pointer;
+    }
+
+    video {
+      width: 100%;
+      max-width: 800px;
+      margin-top: 20px;
+      background-color: black;
+    }
+
+    #progress {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #ccc;
+    }
   </style>
 </head>
 <body>
-  <h1>🎬 Lire un film via magnet</h1>
-  <input id="magnet" placeholder="Colle ici le lien magnet..." />
-  <br>
-  <button onclick="play()">▶️ Lancer la lecture</button>
-  <p id="status">En attente...</p>
-  <progress id="bar" value="0" max="100"></progress>
-  <video id="video" controls autoplay></video>
+
+  <h1>🎬 Lecture torrent côté client</h1>
+  <input type="text" id="magnetInput" placeholder="Collez ici le lien magnet">
+  <button onclick="playTorrent()">Lire la vidéo</button>
+
+  <div id="progress">⏳ En attente...</div>
+  <video id="video" controls></video>
 
   <script>
     const client = new WebTorrent();
-    const status = document.getElementById("status");
-    const progress = document.getElementById("bar");
-    const video = document.getElementById("video");
+    const video = document.getElementById('video');
+    const progressText = document.getElementById('progress');
 
-    function play() {
-      const magnet = document.getElementById("magnet").value.trim();
-      if (!magnet.startsWith("magnet:?")) {
-        status.textContent = "❌ Lien magnet invalide";
+    function playTorrent() {
+      const magnet = document.getElementById('magnetInput').value.trim();
+      if (!magnet) return alert("Veuillez entrer un lien magnet.");
+
+      // Empêche les doublons
+      const existing = client.get(magnet);
+      if (existing) {
+        const file = existing.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'));
+        if (file) file.renderTo(video);
         return;
       }
 
-      status.textContent = "⏳ Chargement du torrent...";
-      client.add(magnet, (torrent) => {
-        const file = torrent.files.find(f => /\.(mp4|mkv|webm)$/i.test(f.name));
+      // Ajoute et lit le torrent
+      progressText.textContent = "⏳ Chargement du torrent...";
+      client.add(magnet, torrent => {
+        const file = torrent.files.find(f => f.name.endsWith('.mp4') || f.name.endsWith('.mkv') || f.name.endsWith('.webm'));
         if (!file) {
-          status.textContent = "❌ Aucun fichier vidéo détecté.";
-          console.log("Fichiers dans le torrent :", torrent.files.map(f => f.name));
+          progressText.textContent = "❌ Aucun fichier vidéo trouvé.";
           return;
         }
 
-        status.textContent = `🎥 Lecture de : ${file.name}`;
         file.renderTo(video);
-
-        torrent.on("download", () => {
+        torrent.on('download', () => {
           const percent = (torrent.progress * 100).toFixed(1);
-          status.textContent = `📦 Téléchargé : ${percent}%`;
-          progress.value = percent;
+          const downloadedMB = (torrent.downloaded / 1024 / 1024).toFixed(2);
+          const totalMB = (torrent.length / 1024 / 1024).toFixed(2);
+          progressText.textContent = `📦 ${percent}% téléchargé (${downloadedMB} / ${totalMB} MB)`;
         });
 
-        torrent.on("done", () => {
-          status.textContent = "✅ Téléchargement terminé";
-          progress.value = 100;
+        torrent.on('done', () => {
+          progressText.textContent = "✅ Téléchargement terminé.";
         });
       });
     }
